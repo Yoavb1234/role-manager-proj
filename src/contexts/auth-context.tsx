@@ -2,50 +2,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { AuthContextType, AuthState, LoginCredentials, SignupCredentials, User, UserRole } from "@/types/auth";
 import { toast } from "sonner";
-
-// Mock API functions (in a real app, these would call your backend)
-const mockUsers: User[] = [];
-
-const mockLogin = async (credentials: LoginCredentials): Promise<{ user: User; token: string }> => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 800));
-  
-  const user = mockUsers.find(u => u.email === credentials.email);
-  
-  if (!user || user.email !== credentials.email) {
-    throw new Error("Invalid credentials");
-  }
-  
-  // In a real app, you would verify the password here
-  const token = `mock-jwt-token-${Math.random().toString(36).substring(2)}`;
-  return { user, token };
-};
-
-const mockSignup = async (credentials: SignupCredentials): Promise<{ user: User; token: string }> => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 800));
-  
-  if (mockUsers.some(u => u.email === credentials.email)) {
-    throw new Error("Email already in use");
-  }
-  
-  // Determine if this is the first user (who gets Admin role)
-  const isFirstUser = mockUsers.length === 0;
-  const role: UserRole = isFirstUser ? "Admin" : "Viewer";
-  
-  const newUser: User = {
-    id: `user-${Date.now()}`,
-    email: credentials.email,
-    name: credentials.name,
-    role,
-    createdAt: new Date().toISOString(),
-  };
-  
-  mockUsers.push(newUser);
-  
-  const token = `mock-jwt-token-${Math.random().toString(36).substring(2)}`;
-  return { user: newUser, token };
-};
+import { supabase } from "@/integrations/supabase/client";
 
 const initialState: AuthState = {
   user: null,
@@ -65,57 +22,142 @@ export const AuthContext = createContext<AuthContextType>({
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, setState] = useState<AuthState>(initialState);
 
+  // Function to fetch user profile data
+  const fetchUserProfile = async (userId: string): Promise<User | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        return null;
+      }
+
+      if (!data) return null;
+
+      return {
+        id: data.id,
+        email: '', // Will be populated from auth.user
+        name: data.name,
+        role: data.role as UserRole,
+        createdAt: data.created_at,
+      };
+    } catch (error) {
+      console.error('Error in fetchUserProfile:', error);
+      return null;
+    }
+  };
+
+  // Check for existing session on component mount
   useEffect(() => {
-    // Check for stored token and user on initial load
-    const storedToken = localStorage.getItem("auth-token");
-    const storedUser = localStorage.getItem("auth-user");
-    
-    if (storedToken && storedUser) {
+    const checkSession = async () => {
       try {
-        const user = JSON.parse(storedUser) as User;
-        setState({
-          user,
-          token: storedToken,
-          isAuthenticated: true,
-          isLoading: false,
-        });
+        const { data: { session }, error } = await supabase.auth.getSession();
         
-        // Ensure the user exists in our mock database
-        if (!mockUsers.some(u => u.id === user.id)) {
-          mockUsers.push(user);
+        if (error) {
+          throw error;
+        }
+
+        if (session) {
+          const { user: authUser } = session;
+          const profile = await fetchUserProfile(authUser.id);
+          
+          if (profile) {
+            const user: User = {
+              ...profile,
+              email: authUser.email || '',
+            };
+
+            setState({
+              user,
+              token: session.access_token,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+          } else {
+            // User authenticated but no profile found
+            setState({
+              ...initialState,
+              isLoading: false,
+            });
+          }
+        } else {
+          // No session found
+          setState({
+            ...initialState,
+            isLoading: false,
+          });
         }
       } catch (error) {
-        console.error("Failed to parse stored user", error);
-        localStorage.removeItem("auth-token");
-        localStorage.removeItem("auth-user");
-        setState({ ...initialState, isLoading: false });
+        console.error('Error checking session:', error);
+        setState({
+          ...initialState,
+          isLoading: false,
+        });
       }
-    } else {
-      setState({ ...initialState, isLoading: false });
-    }
+    };
+
+    checkSession();
+
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          const { user: authUser } = session;
+          const profile = await fetchUserProfile(authUser.id);
+          
+          if (profile) {
+            const user: User = {
+              ...profile,
+              email: authUser.email || '',
+            };
+
+            setState({
+              user,
+              token: session.access_token,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setState({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+        }
+      }
+    );
+
+    // Cleanup subscription on unmount
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (credentials: LoginCredentials) => {
     setState(prev => ({ ...prev, isLoading: true }));
     
     try {
-      const { user, token } = await mockLogin(credentials);
-      
-      localStorage.setItem("auth-token", token);
-      localStorage.setItem("auth-user", JSON.stringify(user));
-      
-      setState({
-        user,
-        token,
-        isAuthenticated: true,
-        isLoading: false,
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.password,
       });
       
+      if (error) throw error;
+      
+      // Auth state listener will handle state update
       toast.success("Logged in successfully");
-    } catch (error) {
-      console.error("Login failed", error);
+    } catch (error: any) {
+      console.error("Login failed:", error);
       setState(prev => ({ ...prev, isLoading: false }));
-      toast.error("Invalid credentials");
+      
+      const errorMessage = error.message || "Invalid credentials";
+      toast.error(errorMessage);
       throw error;
     }
   };
@@ -124,61 +166,77 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setState(prev => ({ ...prev, isLoading: true }));
     
     try {
-      const { user, token } = await mockSignup(credentials);
-      
-      localStorage.setItem("auth-token", token);
-      localStorage.setItem("auth-user", JSON.stringify(user));
-      
-      setState({
-        user,
-        token,
-        isAuthenticated: true,
-        isLoading: false,
+      const { data, error } = await supabase.auth.signUp({
+        email: credentials.email,
+        password: credentials.password,
+        options: {
+          data: {
+            name: credentials.name,
+          },
+          emailRedirectTo: `${window.location.origin}/login`,
+        },
       });
       
-      toast.success(`Welcome, ${user.name}! You've been registered as a${user.role === "Admin" ? "n" : ""} ${user.role}`);
-    } catch (error) {
-      console.error("Signup failed", error);
+      if (error) throw error;
+      
+      toast.success("Registration successful! Please check your email to confirm your account.");
+      setState(prev => ({ ...prev, isLoading: false }));
+    } catch (error: any) {
+      console.error("Signup failed:", error);
       setState(prev => ({ ...prev, isLoading: false }));
       
-      if (error instanceof Error) {
-        toast.error(error.message);
-      } else {
-        toast.error("Failed to create account");
-      }
-      
+      const errorMessage = error.message || "Failed to create account";
+      toast.error(errorMessage);
       throw error;
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem("auth-token");
-    localStorage.removeItem("auth-user");
-    
-    setState({
-      user: null,
-      token: null,
-      isAuthenticated: false,
-      isLoading: false,
-    });
-    
-    toast.success("Logged out successfully");
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      setState({
+        user: null,
+        token: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
+      
+      toast.success("Logged out successfully");
+    } catch (error) {
+      console.error("Logout failed:", error);
+      toast.error("Failed to log out");
+    }
   };
 
-  const updateUser = (updatedUser: User) => {
-    // Update in mock database
-    const userIndex = mockUsers.findIndex(u => u.id === updatedUser.id);
-    if (userIndex !== -1) {
-      mockUsers[userIndex] = updatedUser;
+  const updateUser = async (updatedUser: User) => {
+    if (!state.user || state.user.id !== updatedUser.id) {
+      return;
     }
-    
-    // Update current user if it's the same user
-    if (state.user && state.user.id === updatedUser.id) {
-      localStorage.setItem("auth-user", JSON.stringify(updatedUser));
+
+    try {
+      // Update the profile in Supabase
+      const { error } = await supabase
+        .from('profiles')
+        .update({ 
+          name: updatedUser.name,
+          role: updatedUser.role 
+        })
+        .eq('id', updatedUser.id);
+
+      if (error) throw error;
+
+      // Update local state
       setState(prev => ({
         ...prev,
         user: updatedUser,
       }));
+      
+      toast.success("User profile updated successfully");
+    } catch (error) {
+      console.error("Failed to update user:", error);
+      toast.error("Failed to update user profile");
     }
   };
 
@@ -199,30 +257,57 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
 export const useAuth = () => useContext(AuthContext);
 
-// Mock functions to manage users (for admin panel)
+// Functions for user management (admin only)
 export const getAllUsers = async (): Promise<User[]> => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-  return [...mockUsers];
+  try {
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('*');
+
+    if (error) throw error;
+
+    // We don't have emails in profiles table, so we'll create users with empty emails
+    const users: User[] = profiles.map(profile => ({
+      id: profile.id,
+      email: '', // Empty email for now
+      name: profile.name,
+      role: profile.role as UserRole,
+      createdAt: profile.created_at,
+    }));
+
+    return users;
+  } catch (error) {
+    console.error("Failed to get all users:", error);
+    toast.error("Failed to load users");
+    return [];
+  }
 };
 
 export const updateUserRole = async (userId: string, newRole: UserRole, currentUser: User): Promise<User> => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  // Check if current user is admin
   if (currentUser.role !== "Admin") {
     throw new Error("Only admins can update user roles");
   }
   
-  // Find and update user
-  const userIndex = mockUsers.findIndex(u => u.id === userId);
-  if (userIndex === -1) {
-    throw new Error("User not found");
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ role: newRole })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    
+    return {
+      id: data.id,
+      email: '', // We don't have this in the response
+      name: data.name,
+      role: data.role as UserRole,
+      createdAt: data.created_at,
+    };
+  } catch (error) {
+    console.error("Failed to update user role:", error);
+    toast.error("Failed to update user role");
+    throw error;
   }
-  
-  const updatedUser = { ...mockUsers[userIndex], role: newRole };
-  mockUsers[userIndex] = updatedUser;
-  
-  return updatedUser;
 };

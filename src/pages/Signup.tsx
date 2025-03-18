@@ -1,15 +1,17 @@
 
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const Signup: React.FC = () => {
   const { signup } = useAuth();
+  const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,6 +25,8 @@ const Signup: React.FC = () => {
 
     try {
       await signup({ name, email, password });
+      // Redirect to login with a message about email confirmation
+      navigate("/login?emailConfirmation=pending");
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
@@ -44,10 +48,12 @@ const Signup: React.FC = () => {
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           {error && (
-            <div className="p-3 text-sm text-destructive-foreground bg-destructive/10 rounded-md">
-              {error}
-            </div>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
+          
           <div className="space-y-2">
             <Label htmlFor="name">Full Name</Label>
             <Input
@@ -81,7 +87,11 @@ const Signup: React.FC = () => {
               placeholder="••••••••"
               required
               className="bg-background/50"
+              minLength={6}
             />
+            <p className="text-xs text-muted-foreground">
+              Password must be at least 6 characters long
+            </p>
           </div>
         </CardContent>
         <CardFooter className="flex flex-col">

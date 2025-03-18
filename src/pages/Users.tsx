@@ -99,7 +99,6 @@ const Users: React.FC = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead className="w-[150px]">Actions</TableHead>
                 </TableRow>
@@ -108,7 +107,6 @@ const Users: React.FC = () => {
                 {users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5">
                         {user.role === "Admin" && <Shield className="h-4 w-4 text-primary" />}

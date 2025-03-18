@@ -1,12 +1,14 @@
 
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
 
 const Login: React.FC = () => {
   const { login } = useAuth();
@@ -14,10 +16,52 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    // Check if user came from email confirmation
+    const handleEmailConfirmation = async () => {
+      // Get the hash from the URL
+      const hash = window.location.hash;
+      
+      if (hash && hash.includes('access_token')) {
+        try {
+          setMessage("Confirming your email...");
+          
+          // Extract the access token from the URL
+          const accessToken = hash.substring(1).split('&').find(param => param.startsWith('access_token'))?.split('=')[1];
+          
+          if (accessToken) {
+            const { data, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: '',
+            });
+            
+            if (error) throw error;
+            
+            setMessage("Email confirmed successfully! You can now log in.");
+          }
+        } catch (error) {
+          console.error("Error confirming email:", error);
+          setError("Failed to confirm email. Please try again or contact support.");
+        }
+      }
+      
+      // Check for email confirmation message from signup page
+      const confirmationStatus = searchParams.get("emailConfirmation");
+      if (confirmationStatus === "pending") {
+        setMessage("We've sent a confirmation email. Please check your inbox and confirm your email address before logging in.");
+      }
+    };
+    
+    handleEmailConfirmation();
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setMessage("");
     setIsSubmitting(true);
 
     try {
@@ -43,10 +87,19 @@ const Login: React.FC = () => {
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           {error && (
-            <div className="p-3 text-sm text-destructive-foreground bg-destructive/10 rounded-md">
-              {error}
-            </div>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
+          
+          {message && (
+            <Alert>
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+          )}
+          
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
