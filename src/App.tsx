@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/auth-context";
 import { ProjectProvider } from "@/contexts/project-context";
 
@@ -14,7 +14,6 @@ import AuthLayout from "@/components/layout/AuthLayout";
 // Pages
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
-import Dashboard from "@/pages/Dashboard";
 import Projects from "@/pages/Projects";
 import ProjectDetail from "@/pages/ProjectDetail";
 import ProjectForm from "@/pages/ProjectForm";
@@ -40,8 +39,7 @@ const App = () => (
               
               {/* Protected routes */}
               <Route element={<AppLayout />}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/" element={<Navigate to="/projects" replace />} />
                 
                 {/* Projects routes */}
                 <Route path="/projects" element={<Projects />} />

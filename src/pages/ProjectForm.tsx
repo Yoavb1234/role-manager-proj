@@ -80,14 +80,12 @@ const ProjectForm: React.FC = () => {
       if (isEditMode && id) {
         await updateProject(id, title, content);
         toast.success("Project updated successfully");
+        navigate(`/projects/${id}`);
       } else {
         const newProject = await createProject(title, content);
         toast.success("Project created successfully");
         navigate(`/projects/${newProject.id}`);
-        return;
       }
-      
-      navigate(`/projects/${id}`);
     } catch (error) {
       if (error instanceof Error) {
         toast.error(error.message);

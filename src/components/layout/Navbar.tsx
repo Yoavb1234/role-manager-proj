@@ -4,7 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { LogOut, Users, FileText, LayoutDashboard } from "lucide-react";
+import { LogOut, Users, FileText } from "lucide-react";
 
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
@@ -15,11 +15,6 @@ const Navbar: React.FC = () => {
   };
 
   const navItems = [
-    {
-      title: "Dashboard",
-      path: "/dashboard",
-      icon: <LayoutDashboard className="h-4 w-4 mr-2" />,
-    },
     {
       title: "Projects",
       path: "/projects",
@@ -42,7 +37,7 @@ const Navbar: React.FC = () => {
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-6">
             <Link
-              to="/dashboard"
+              to="/projects"
               className="text-xl font-semibold tracking-tight hover:text-primary transition-colors"
             >
               Role Manager

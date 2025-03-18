@@ -4,6 +4,7 @@ import { Project, ProjectWithAuthor } from "@/types/project";
 import { User } from "@/types/auth";
 import { toast } from "sonner";
 import { useAuth } from "./auth-context";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ProjectContextType {
   projects: Project[];
@@ -15,9 +16,6 @@ interface ProjectContextType {
   getAllProjects: () => Promise<Project[]>;
   getProjectWithAuthor: (id: string) => Promise<ProjectWithAuthor | null>;
 }
-
-// Mock data
-const mockProjects: Project[] = [];
 
 const ProjectContext = createContext<ProjectContextType>({
   projects: [],
@@ -31,7 +29,7 @@ const ProjectContext = createContext<ProjectContextType>({
 });
 
 export const ProjectProvider = ({ children }: { children: React.ReactNode }) => {
-  const [projects, setProjects] = useState<Project[]>(mockProjects);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
 
@@ -53,25 +51,33 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
       // Check permission
       checkPermission("create");
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (!user) throw new Error("User not authenticated");
       
-      const now = new Date().toISOString();
-      const newProject: Project = {
-        id: `project-${Date.now()}`,
+      const newProject = {
         title,
         content,
-        createdBy: user!.id,
-        createdAt: now,
-        updatedAt: now,
+        created_by: user.id
       };
       
-      // Add to mock database
-      mockProjects.push(newProject);
-      setProjects([...mockProjects]);
+      const { data, error } = await supabase
+        .from('projects')
+        .insert(newProject)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      const formattedProject: Project = {
+        id: data.id,
+        title: data.title,
+        content: data.content,
+        createdBy: data.created_by,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at
+      };
       
       toast.success("Project created successfully");
-      return newProject;
+      return formattedProject;
     } catch (error) {
       if (error instanceof Error) {
         toast.error(error.message);
@@ -91,38 +97,34 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
       // Check permission
       checkPermission("update");
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (!user) throw new Error("User not authenticated");
       
-      // Find project
-      const projectIndex = mockProjects.findIndex(p => p.id === id);
-      if (projectIndex === -1) {
-        throw new Error("Project not found");
-      }
-      
-      // Only admin/editor can edit projects
-      if (user!.role === "Viewer") {
-        throw new Error("Viewers cannot edit projects");
-      }
-      
-      // Editors can only edit their own projects unless they're admins
-      if (user!.role === "Editor" && mockProjects[projectIndex].createdBy !== user!.id) {
-        throw new Error("You can only edit your own projects");
-      }
-      
-      const updatedProject = {
-        ...mockProjects[projectIndex],
+      const updates = {
         title,
         content,
-        updatedAt: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
       
-      // Update in mock database
-      mockProjects[projectIndex] = updatedProject;
-      setProjects([...mockProjects]);
+      const { data, error } = await supabase
+        .from('projects')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      const formattedProject: Project = {
+        id: data.id,
+        title: data.title,
+        content: data.content,
+        createdBy: data.created_by,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at
+      };
       
       toast.success("Project updated successfully");
-      return updatedProject;
+      return formattedProject;
     } catch (error) {
       if (error instanceof Error) {
         toast.error(error.message);
@@ -142,23 +144,14 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
       // Check permission
       checkPermission("delete");
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (!user) throw new Error("User not authenticated");
       
-      // Find project
-      const projectIndex = mockProjects.findIndex(p => p.id === id);
-      if (projectIndex === -1) {
-        throw new Error("Project not found");
-      }
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', id);
       
-      // Editors can only delete their own projects
-      if (user!.role === "Editor" && mockProjects[projectIndex].createdBy !== user!.id) {
-        throw new Error("You can only delete your own projects");
-      }
-      
-      // Remove from mock database
-      mockProjects.splice(projectIndex, 1);
-      setProjects([...mockProjects]);
+      if (error) throw error;
       
       toast.success("Project deleted successfully");
     } catch (error) {
@@ -174,20 +167,58 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
   };
 
   const getProject = async (id: string): Promise<Project | null> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 300));
-    return mockProjects.find(p => p.id === id) || null;
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        console.error("Error fetching project:", error);
+        return null;
+      }
+      
+      if (!data) return null;
+      
+      return {
+        id: data.id,
+        title: data.title,
+        content: data.content,
+        createdBy: data.created_by,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at
+      };
+    } catch (error) {
+      console.error("Error in getProject:", error);
+      return null;
+    }
   };
 
   const getAllProjects = async (): Promise<Project[]> => {
     setIsLoading(true);
     
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('updated_at', { ascending: false });
       
-      // Return all projects (in a real app, we'd filter based on permissions)
-      return [...mockProjects];
+      if (error) throw error;
+      
+      const formattedProjects: Project[] = data.map(project => ({
+        id: project.id,
+        title: project.title,
+        content: project.content,
+        createdBy: project.created_by,
+        createdAt: project.created_at,
+        updatedAt: project.updated_at
+      }));
+      
+      return formattedProjects;
+    } catch (error) {
+      console.error("Error fetching all projects:", error);
+      return [];
     } finally {
       setIsLoading(false);
     }
@@ -195,18 +226,39 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
 
   const getProjectWithAuthor = async (id: string): Promise<ProjectWithAuthor | null> => {
     try {
-      const project = await getProject(id);
-      if (!project) return null;
+      const { data, error } = await supabase
+        .from('projects')
+        .select(`
+          *,
+          profiles:created_by (id, name, role)
+        `)
+        .eq('id', id)
+        .single();
       
-      // Get author info from auth context
-      // This is a simplification - in a real app, you'd get the user from your backend
-      const { getAllUsers } = await import("./auth-context");
-      const users = await getAllUsers();
-      const author = users.find(u => u.id === project.createdBy) as User;
+      if (error) {
+        console.error("Error fetching project with author:", error);
+        return null;
+      }
       
-      if (!author) return null;
+      if (!data || !data.profiles) return null;
       
-      return { ...project, author };
+      const author: User = {
+        id: data.profiles.id,
+        email: '',
+        name: data.profiles.name,
+        role: data.profiles.role,
+        createdAt: ''
+      };
+      
+      return {
+        id: data.id,
+        title: data.title,
+        content: data.content,
+        createdBy: data.created_by,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+        author
+      };
     } catch (error) {
       console.error("Failed to get project with author", error);
       return null;

@@ -5,17 +5,18 @@ import { useAuth } from "@/contexts/auth-context";
 import { useProjects } from "@/contexts/project-context";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Project, getProjectPermissions } from "@/types/project";
+import { ProjectWithAuthor, getProjectPermissions } from "@/types/project";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ChevronLeft, Edit, Trash, AlertTriangle } from "lucide-react";
+import { ChevronLeft, Edit, Trash, AlertTriangle, User } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 
 const ProjectDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { getProject, deleteProject, isLoading } = useProjects();
-  const [project, setProject] = useState<Project | null>(null);
+  const { getProjectWithAuthor, deleteProject, isLoading } = useProjects();
+  const [project, setProject] = useState<ProjectWithAuthor | null>(null);
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
@@ -23,7 +24,7 @@ const ProjectDetail: React.FC = () => {
       if (!id) return;
       
       try {
-        const fetchedProject = await getProject(id);
+        const fetchedProject = await getProjectWithAuthor(id);
         setProject(fetchedProject);
       } catch (error) {
         toast.error("Failed to load project");
@@ -34,7 +35,7 @@ const ProjectDetail: React.FC = () => {
     };
     
     fetchProject();
-  }, [id, getProject]);
+  }, [id, getProjectWithAuthor]);
   
   const permissions = getProjectPermissions(project, user);
   
@@ -105,9 +106,16 @@ const ProjectDetail: React.FC = () => {
             Back to Projects
           </Link>
           <h1 className="text-3xl font-bold tracking-tight">{project.title}</h1>
-          <p className="text-muted-foreground mt-1">
-            Last updated on {new Date(project.updatedAt).toLocaleDateString()}
-          </p>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-1 text-muted-foreground">
+            {project.author && (
+              <div className="flex items-center">
+                <User className="h-4 w-4 mr-1" />
+                <span>Created by {project.author.name}</span>
+              </div>
+            )}
+            <div className="hidden sm:block">•</div>
+            <div>Last updated on {new Date(project.updatedAt).toLocaleDateString()}</div>
+          </div>
         </div>
         
         <div className="flex gap-3">
