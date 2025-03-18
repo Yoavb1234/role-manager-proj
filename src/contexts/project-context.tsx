@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState } from "react";
 import { Project, ProjectWithAuthor } from "@/types/project";
 import { User, UserRole } from "@/types/auth";
@@ -43,6 +44,18 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
     }
   };
 
+  // Helper function to format a project from the database
+  const formatProject = (data: any): Project => {
+    return {
+      id: data.id,
+      title: data.title,
+      content: data.content,
+      createdBy: data.created_by,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
+    };
+  };
+
   const createProject = async (title: string, content: string): Promise<Project> => {
     setIsLoading(true);
     
@@ -66,14 +79,10 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
       
       if (error) throw error;
       
-      const formattedProject: Project = {
-        id: data.id,
-        title: data.title,
-        content: data.content,
-        createdBy: data.created_by,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at
-      };
+      const formattedProject = formatProject(data);
+      
+      // Update local state
+      setProjects(prev => [formattedProject, ...prev]);
       
       toast.success("Project created successfully");
       return formattedProject;
@@ -113,14 +122,10 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
       
       if (error) throw error;
       
-      const formattedProject: Project = {
-        id: data.id,
-        title: data.title,
-        content: data.content,
-        createdBy: data.created_by,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at
-      };
+      const formattedProject = formatProject(data);
+      
+      // Update local state
+      setProjects(prev => prev.map(p => p.id === id ? formattedProject : p));
       
       toast.success("Project updated successfully");
       return formattedProject;
@@ -152,6 +157,9 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
       
       if (error) throw error;
       
+      // Update local state
+      setProjects(prev => prev.filter(p => p.id !== id));
+      
       toast.success("Project deleted successfully");
     } catch (error) {
       if (error instanceof Error) {
@@ -167,6 +175,10 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
 
   const getProject = async (id: string): Promise<Project | null> => {
     try {
+      // First try to find the project in local state
+      const localProject = projects.find(p => p.id === id);
+      if (localProject) return localProject;
+      
       const { data, error } = await supabase
         .from('projects')
         .select('*')
@@ -180,14 +192,7 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
       
       if (!data) return null;
       
-      return {
-        id: data.id,
-        title: data.title,
-        content: data.content,
-        createdBy: data.created_by,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at
-      };
+      return formatProject(data);
     } catch (error) {
       console.error("Error in getProject:", error);
       return null;
@@ -198,21 +203,23 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
     setIsLoading(true);
     
     try {
+      console.log("Fetching all projects...");
       const { data, error } = await supabase
         .from('projects')
         .select('*')
         .order('updated_at', { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching all projects:", error);
+        throw error;
+      }
       
-      const formattedProjects: Project[] = data.map(project => ({
-        id: project.id,
-        title: project.title,
-        content: project.content,
-        createdBy: project.created_by,
-        createdAt: project.created_at,
-        updatedAt: project.updated_at
-      }));
+      console.log("Projects data from Supabase:", data);
+      
+      const formattedProjects: Project[] = data.map(project => formatProject(project));
+      
+      // Update local state
+      setProjects(formattedProjects);
       
       return formattedProjects;
     } catch (error) {

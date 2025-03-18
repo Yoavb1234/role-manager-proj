@@ -1,14 +1,13 @@
+
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { useProjects } from "@/contexts/project-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Project, ProjectWithAuthor } from "@/types/project";
-import { Plus, Search, FolderOpen } from "lucide-react";
+import { Project } from "@/types/project";
+import { Plus, Search, FolderOpen, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 
 const Projects: React.FC = () => {
@@ -17,34 +16,43 @@ const Projects: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [projectAuthors, setProjectAuthors] = useState<Record<string, string>>({});
+  const [loadingProjects, setLoadingProjects] = useState(true);
   
   const canCreateProjects = user?.role === "Admin" || user?.role === "Editor";
   
   useEffect(() => {
     const fetchProjects = async () => {
-      const allProjects = await getAllProjects();
-      setProjects(allProjects);
-      
-      // Fetch author names for each project
-      const authors: Record<string, string> = {};
-      
-      for (const project of allProjects) {
-        try {
-          const { data } = await supabase
-            .from('profiles')
-            .select('name')
-            .eq('id', project.createdBy)
-            .single();
-          
-          if (data) {
-            authors[project.id] = data.name;
+      setLoadingProjects(true);
+      try {
+        const allProjects = await getAllProjects();
+        setProjects(allProjects);
+        console.log("Fetched projects:", allProjects);
+        
+        // Fetch author names for each project
+        const authors: Record<string, string> = {};
+        
+        for (const project of allProjects) {
+          try {
+            const { data } = await supabase
+              .from('profiles')
+              .select('name')
+              .eq('id', project.createdBy)
+              .single();
+            
+            if (data) {
+              authors[project.id] = data.name;
+            }
+          } catch (error) {
+            console.error("Error fetching author:", error);
           }
-        } catch (error) {
-          console.error("Error fetching author:", error);
         }
+        
+        setProjectAuthors(authors);
+      } catch (error) {
+        console.error("Error in fetchProjects:", error);
+      } finally {
+        setLoadingProjects(false);
       }
-      
-      setProjectAuthors(authors);
     };
     
     fetchProjects();
@@ -86,11 +94,10 @@ const Projects: React.FC = () => {
         />
       </div>
       
-      {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-[180px] w-full" />
-          ))}
+      {loadingProjects ? (
+        <div className="flex justify-center items-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="ml-2 text-muted-foreground">Loading projects...</span>
         </div>
       ) : filteredProjects.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
