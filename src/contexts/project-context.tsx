@@ -1,7 +1,6 @@
-
 import React, { createContext, useContext, useState } from "react";
 import { Project, ProjectWithAuthor } from "@/types/project";
-import { User } from "@/types/auth";
+import { User, UserRole } from "@/types/auth";
 import { toast } from "sonner";
 import { useAuth } from "./auth-context";
 import { supabase } from "@/integrations/supabase/client";
@@ -256,13 +255,13 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
         id: profileData.id,
         email: '', // We don't store email in profiles
         name: profileData.name,
-        role: profileData.role,
+        role: profileData.role as UserRole, // Cast the role to UserRole type
         createdAt: profileData.created_at
       } : {
         id: projectData.created_by,
         email: '',
         name: 'Unknown user',
-        role: '',
+        role: 'Viewer' as UserRole, // Use a default UserRole
         createdAt: ''
       };
       
