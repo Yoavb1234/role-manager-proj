@@ -226,37 +226,53 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
 
   const getProjectWithAuthor = async (id: string): Promise<ProjectWithAuthor | null> => {
     try {
-      const { data, error } = await supabase
+      // First, fetch the project
+      const { data: projectData, error: projectError } = await supabase
         .from('projects')
-        .select(`
-          *,
-          profiles:created_by (id, name, role)
-        `)
+        .select('*')
         .eq('id', id)
         .single();
       
-      if (error) {
-        console.error("Error fetching project with author:", error);
+      if (projectError) {
+        console.error("Error fetching project:", projectError);
         return null;
       }
       
-      if (!data || !data.profiles) return null;
+      if (!projectData) return null;
       
-      const author: User = {
-        id: data.profiles.id,
+      // Then, fetch the author profile separately 
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', projectData.created_by)
+        .single();
+      
+      if (profileError) {
+        console.error("Error fetching author profile:", profileError);
+        // We'll still return the project even if we can't get the author
+      }
+      
+      const author: User = profileData ? {
+        id: profileData.id,
+        email: '', // We don't store email in profiles
+        name: profileData.name,
+        role: profileData.role,
+        createdAt: profileData.created_at
+      } : {
+        id: projectData.created_by,
         email: '',
-        name: data.profiles.name,
-        role: data.profiles.role,
+        name: 'Unknown user',
+        role: '',
         createdAt: ''
       };
       
       return {
-        id: data.id,
-        title: data.title,
-        content: data.content,
-        createdBy: data.created_by,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at,
+        id: projectData.id,
+        title: projectData.title,
+        content: projectData.content,
+        createdBy: projectData.created_by,
+        createdAt: projectData.created_at,
+        updatedAt: projectData.updated_at,
         author
       };
     } catch (error) {
