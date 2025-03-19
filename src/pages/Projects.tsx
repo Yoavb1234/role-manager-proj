@@ -82,45 +82,51 @@ const Projects: React.FC = () => {
         if (!isMounted) return;
         setLoadingProgress(60);
         
-        setProjects(allProjects);
-        
-        // Batch fetch author names to improve performance
-        if (allProjects.length > 0) {
-          console.time('fetchAuthors');
-          const uniqueAuthorIds = [...new Set(allProjects.map(p => p.createdBy))];
+        if (allProjects && allProjects.length > 0) {
+          console.log("Projects loaded successfully:", allProjects);
+          setProjects(allProjects);
           
-          try {
-            const { data, error } = await Promise.race([
-              supabase
-                .from('profiles')
-                .select('id, name')
-                .in('id', uniqueAuthorIds),
-              new Promise<{data: null, error: Error}>((resolve) => 
-                setTimeout(() => resolve({
-                  data: null, 
-                  error: new Error("Author data fetch timeout")
-                }), 5000)
-              )
-            ]);
+          // Batch fetch author names to improve performance
+          if (allProjects.length > 0) {
+            console.time('fetchAuthors');
+            const uniqueAuthorIds = [...new Set(allProjects.map(p => p.createdBy))];
             
-            if (!isMounted) return;
-            setLoadingProgress(90);
-            
-            if (error) {
-              console.error("Error fetching author data:", error);
+            try {
+              const { data, error } = await Promise.race([
+                supabase
+                  .from('profiles')
+                  .select('id, name')
+                  .in('id', uniqueAuthorIds),
+                new Promise<{data: null, error: Error}>((resolve) => 
+                  setTimeout(() => resolve({
+                    data: null, 
+                    error: new Error("Author data fetch timeout")
+                  }), 5000)
+                )
+              ]);
+              
+              if (!isMounted) return;
+              setLoadingProgress(90);
+              
+              if (error) {
+                console.error("Error fetching author data:", error);
+                // Continue without author data
+              } else if (data) {
+                const authorsMap: Record<string, string> = {};
+                data.forEach(profile => {
+                  authorsMap[profile.id] = profile.name;
+                });
+                setProjectAuthors(authorsMap);
+              }
+            } catch (authorError) {
+              console.error("Exception fetching authors:", authorError);
               // Continue without author data
-            } else if (data) {
-              const authorsMap: Record<string, string> = {};
-              data.forEach(profile => {
-                authorsMap[profile.id] = profile.name;
-              });
-              setProjectAuthors(authorsMap);
             }
-          } catch (authorError) {
-            console.error("Exception fetching authors:", authorError);
-            // Continue without author data
+            console.timeEnd('fetchAuthors');
           }
-          console.timeEnd('fetchAuthors');
+        } else {
+          console.log("No projects returned or empty array:", allProjects);
+          setProjects([]);
         }
         
       } catch (error) {
