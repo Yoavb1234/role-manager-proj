@@ -22,15 +22,25 @@ export const createProjectService = async (title: string, content: string, userI
     created_by: userId
   };
   
-  const { data, error } = await supabase
-    .from('projects')
-    .insert(newProject)
-    .select()
-    .single();
-  
-  if (error) throw error;
-  
-  return formatProject(data);
+  try {
+    console.log("Creating project with data:", newProject);
+    const { data, error } = await supabase
+      .from('projects')
+      .insert(newProject)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error("Error creating project:", error);
+      throw error;
+    }
+    
+    console.log("Project created successfully:", data);
+    return formatProject(data);
+  } catch (error) {
+    console.error("Error in createProjectService:", error);
+    throw error;
+  }
 };
 
 export const updateProjectService = async (id: string, title: string, content: string): Promise<Project> => {
@@ -40,83 +50,130 @@ export const updateProjectService = async (id: string, title: string, content: s
     updated_at: new Date().toISOString()
   };
   
-  const { data, error } = await supabase
-    .from('projects')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
-  
-  if (error) throw error;
-  
-  return formatProject(data);
+  try {
+    console.log(`Updating project ${id} with data:`, updates);
+    const { data, error } = await supabase
+      .from('projects')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error("Error updating project:", error);
+      throw error;
+    }
+    
+    console.log("Project updated successfully:", data);
+    return formatProject(data);
+  } catch (error) {
+    console.error("Error in updateProjectService:", error);
+    throw error;
+  }
 };
 
 export const deleteProjectService = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('projects')
-    .delete()
-    .eq('id', id);
-  
-  if (error) throw error;
+  try {
+    console.log(`Deleting project ${id}`);
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', id);
+    
+    if (error) {
+      console.error("Error deleting project:", error);
+      throw error;
+    }
+    
+    console.log("Project deleted successfully");
+  } catch (error) {
+    console.error("Error in deleteProjectService:", error);
+    throw error;
+  }
 };
 
 export const getProjectService = async (id: string): Promise<Project | null> => {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('id', id)
-    .single();
-  
-  if (error) {
-    console.error("Error fetching project:", error);
+  try {
+    console.log(`Fetching project ${id}`);
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    
+    if (error) {
+      console.error("Error fetching project:", error);
+      return null;
+    }
+    
+    if (!data) {
+      console.log(`No project found with id ${id}`);
+      return null;
+    }
+    
+    console.log("Project fetched successfully:", data);
+    return formatProject(data);
+  } catch (error) {
+    console.error("Error in getProjectService:", error);
     return null;
   }
-  
-  if (!data) return null;
-  
-  return formatProject(data);
 };
 
 export const getAllProjectsService = async (): Promise<Project[]> => {
-  console.log("Fetching all projects...");
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*')
-    .order('updated_at', { ascending: false });
-  
-  if (error) {
-    console.error("Error fetching all projects:", error);
-    throw error;
+  try {
+    console.log("Fetching all projects...");
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .order('updated_at', { ascending: false });
+    
+    if (error) {
+      console.error("Error fetching all projects:", error);
+      throw error;
+    }
+    
+    console.log("Projects data from Supabase:", data);
+    
+    // Return empty array if no data
+    if (!data || data.length === 0) {
+      console.log("No projects found");
+      return [];
+    }
+    
+    return data.map(project => formatProject(project));
+  } catch (error) {
+    console.error("Error in getAllProjectsService:", error);
+    // Return empty array instead of throwing error
+    return [];
   }
-  
-  console.log("Projects data from Supabase:", data);
-  
-  return data.map(project => formatProject(project));
 };
 
 export const getProjectWithAuthorService = async (id: string): Promise<ProjectWithAuthor | null> => {
   try {
+    console.log(`Fetching project with author for id ${id}`);
     // First, fetch the project
     const { data: projectData, error: projectError } = await supabase
       .from('projects')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
     
     if (projectError) {
       console.error("Error fetching project:", projectError);
       return null;
     }
     
-    if (!projectData) return null;
+    if (!projectData) {
+      console.log(`No project found with id ${id}`);
+      return null;
+    }
     
     // Then, fetch the author profile separately 
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', projectData.created_by)
-      .single();
+      .maybeSingle();
     
     if (profileError) {
       console.error("Error fetching author profile:", profileError);
@@ -136,6 +193,8 @@ export const getProjectWithAuthorService = async (id: string): Promise<ProjectWi
       role: 'Viewer' as UserRole, // Use a default UserRole
       createdAt: ''
     };
+    
+    console.log("Project with author fetched successfully");
     
     return {
       id: projectData.id,

@@ -25,19 +25,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Function to fetch user profile data
   const fetchUserProfile = async (userId: string): Promise<User | null> => {
     try {
+      console.log(`Fetching profile for user: ${userId}`);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();  // Use maybeSingle instead of single to prevent errors
 
       if (error) {
         console.error('Error fetching user profile:', error);
         return null;
       }
 
-      if (!data) return null;
+      if (!data) {
+        console.log('No profile found for user:', userId);
+        return null;
+      }
 
+      console.log('Profile found:', data);
       return {
         id: data.id,
         email: '', // Will be populated from auth.user
@@ -53,32 +58,66 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Check for existing session on component mount
   useEffect(() => {
+    let isMounted = true;
+    let timeoutId: number;
+    
     const checkSession = async () => {
       try {
+        console.log('Checking for existing session...');
         const { data: { session }, error } = await supabase.auth.getSession();
         
+        if (!isMounted) return;
+        
         if (error) {
-          throw error;
+          console.error('Error checking session:', error);
+          setState({
+            ...initialState,
+            isLoading: false,
+          });
+          return;
         }
 
         if (session) {
+          console.log('Session found:', session);
           const { user: authUser } = session;
-          const profile = await fetchUserProfile(authUser.id);
           
-          if (profile) {
-            const user: User = {
-              ...profile,
-              email: authUser.email || '',
-            };
+          try {
+            const profile = await fetchUserProfile(authUser.id);
+            
+            if (!isMounted) return;
+            
+            if (profile) {
+              const user: User = {
+                ...profile,
+                email: authUser.email || '',
+              };
 
-            setState({
-              user,
-              token: session.access_token,
-              isAuthenticated: true,
-              isLoading: false,
-            });
-          } else {
-            // User authenticated but no profile found
+              setState({
+                user,
+                token: session.access_token,
+                isAuthenticated: true,
+                isLoading: false,
+              });
+            } else {
+              // Even if profile fetch fails, create a basic user
+              console.log('No profile found, creating basic user');
+              const user: User = {
+                id: authUser.id,
+                email: authUser.email || '',
+                name: authUser.email?.split('@')[0] || 'User',
+                role: 'Viewer',
+                createdAt: new Date().toISOString(),
+              };
+              
+              setState({
+                user,
+                token: session.access_token,
+                isAuthenticated: true,
+                isLoading: false,
+              });
+            }
+          } catch (profileError) {
+            console.error('Error in profile fetch:', profileError);
             setState({
               ...initialState,
               isLoading: false,
@@ -86,6 +125,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }
         } else {
           // No session found
+          console.log('No session found');
           setState({
             ...initialState,
             isLoading: false,
@@ -93,34 +133,73 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       } catch (error) {
         console.error('Error checking session:', error);
-        setState({
-          ...initialState,
-          isLoading: false,
-        });
+        if (isMounted) {
+          setState({
+            ...initialState,
+            isLoading: false,
+          });
+        }
       }
     };
 
     checkSession();
+    
+    // Set a timeout to ensure loading state doesn't get stuck
+    timeoutId = window.setTimeout(() => {
+      if (isMounted && state.isLoading) {
+        console.warn('Auth loading timed out - forcing completion');
+        setState(prev => ({
+          ...prev,
+          isLoading: false,
+        }));
+      }
+    }, 10000); // 10 second timeout
 
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state changed:', event);
+        if (!isMounted) return;
+        
         if (event === 'SIGNED_IN' && session) {
           const { user: authUser } = session;
-          const profile = await fetchUserProfile(authUser.id);
-          
-          if (profile) {
-            const user: User = {
-              ...profile,
-              email: authUser.email || '',
-            };
+          try {
+            const profile = await fetchUserProfile(authUser.id);
+            
+            if (!isMounted) return;
+            
+            if (profile) {
+              const user: User = {
+                ...profile,
+                email: authUser.email || '',
+              };
 
-            setState({
-              user,
-              token: session.access_token,
-              isAuthenticated: true,
-              isLoading: false,
-            });
+              setState({
+                user,
+                token: session.access_token,
+                isAuthenticated: true,
+                isLoading: false,
+              });
+            } else {
+              // Fallback user
+              const user: User = {
+                id: authUser.id,
+                email: authUser.email || '',
+                name: authUser.email?.split('@')[0] || 'User',
+                role: 'Viewer',
+                createdAt: new Date().toISOString(),
+              };
+              
+              setState({
+                user,
+                token: session.access_token,
+                isAuthenticated: true,
+                isLoading: false,
+              });
+            }
+          } catch (error) {
+            console.error('Error during sign in:', error);
+            setState(prev => ({ ...prev, isLoading: false }));
           }
         } else if (event === 'SIGNED_OUT') {
           setState({
@@ -135,6 +214,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Cleanup subscription on unmount
     return () => {
+      isMounted = false;
+      window.clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, []);
