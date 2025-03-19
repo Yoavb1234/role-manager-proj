@@ -11,10 +11,12 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
 
 const Projects: React.FC = () => {
   const { user } = useAuth();
   const { getAllProjects, isLoading } = useProjects();
+  const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [projectAuthors, setProjectAuthors] = useState<Record<string, string>>({});
@@ -157,7 +159,7 @@ const Projects: React.FC = () => {
         <Progress value={loadingProgress} className="h-2" />
       </div>
       {loadingTimeout && (
-        <Alert variant="warning" className="mt-4 max-w-md">
+        <Alert variant="destructive" className="mt-4 max-w-md">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             {loadingError || "Loading is taking longer than expected. There might be connectivity issues."}
