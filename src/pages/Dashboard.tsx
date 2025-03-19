@@ -14,24 +14,70 @@ const Dashboard: React.FC = () => {
   const { getAllProjects, isLoading } = useProjects();
   const [projects, setProjects] = useState<Project[]>([]);
   const [userProjects, setUserProjects] = useState<Project[]>([]);
+  const [localLoading, setLocalLoading] = useState(true);
   
   useEffect(() => {
+    let isMounted = true;
+    
     const fetchProjects = async () => {
-      const allProjects = await getAllProjects();
-      setProjects(allProjects);
-      
-      if (user) {
-        // Filter user's own projects if they're an Editor
-        const ownProjects = user.role === "Editor" 
-          ? allProjects.filter(p => p.createdBy === user.id)
-          : allProjects;
+      try {
+        setLocalLoading(true);
+        const allProjects = await getAllProjects();
         
-        setUserProjects(ownProjects);
+        if (!isMounted) return;
+        
+        setProjects(allProjects);
+        
+        if (user) {
+          // Filter user's own projects if they're an Editor
+          const ownProjects = user.role === "Editor" 
+            ? allProjects.filter(p => p.createdBy === user.id)
+            : allProjects;
+          
+          setUserProjects(ownProjects);
+        }
+      } catch (error) {
+        console.error("Error fetching projects:", error);
+      } finally {
+        if (isMounted) {
+          setLocalLoading(false);
+        }
       }
     };
     
     fetchProjects();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [getAllProjects, user]);
+  
+  // Show skeleton while loading
+  if (!user || localLoading) {
+    return (
+      <div className="space-y-8">
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-40 w-full" />
+          ))}
+        </div>
+        
+        <div className="mt-8">
+          <Skeleton className="h-8 w-48 mb-4" />
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-20 w-full" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="space-y-8">
@@ -130,7 +176,7 @@ const Dashboard: React.FC = () => {
       
       <div className="mt-8">
         <h2 className="text-xl font-semibold mb-4">Recent Projects</h2>
-        {isLoading ? (
+        {localLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <Skeleton key={i} className="h-20 w-full" />
