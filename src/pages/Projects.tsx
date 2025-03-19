@@ -30,10 +30,10 @@ const Projects: React.FC = () => {
   
   useEffect(() => {
     let isMounted = true;
-    let timeoutId: number;
+    let timeoutId: NodeJS.Timeout;
     
     // Add timeout for loading state
-    timeoutId = window.setTimeout(() => {
+    timeoutId = setTimeout(() => {
       if (isMounted && isPageLoading) {
         setLoadingTimeout(true);
         setLoadingError("Loading is taking longer than expected. There might be connectivity issues with the database.");
@@ -42,8 +42,18 @@ const Projects: React.FC = () => {
     
     const fetchProjects = async () => {
       try {
-        console.time('fetchProjects');
         setIsPageLoading(true);
+        
+        // Set a timeout to prevent infinite loading
+        timeoutId = setTimeout(() => {
+          if (isMounted) {
+            console.warn("Projects fetch timeout - forcing completion");
+            setIsPageLoading(false);
+            setInitialLoadComplete(true);
+          }
+        }, 10000);
+        
+        console.log("Fetching projects...");
         setLoadingProgress(10);
         
         // Test Supabase connection first
@@ -76,59 +86,43 @@ const Projects: React.FC = () => {
         }
         
         // Proceed with actual data fetching
+        console.log("Fetching projects...");
         const allProjects = await getAllProjects();
-        console.timeEnd('fetchProjects');
         
         if (!isMounted) return;
-        setLoadingProgress(60);
         
-        if (allProjects && allProjects.length > 0) {
-          console.log("Projects loaded successfully:", allProjects);
-          setProjects(allProjects);
-          
-          // Batch fetch author names to improve performance
-          if (allProjects.length > 0) {
-            console.time('fetchAuthors');
+        console.log("Projects fetched:", allProjects.length);
+        setLoadingProgress(60);
+        setProjects(allProjects);
+        
+        // Only fetch authors if we have projects and are still mounted
+        if (allProjects.length > 0 && isMounted) {
+          try {
             const uniqueAuthorIds = [...new Set(allProjects.map(p => p.createdBy))];
             
-            try {
-              const { data, error } = await Promise.race([
-                supabase
-                  .from('profiles')
-                  .select('id, name')
-                  .in('id', uniqueAuthorIds),
-                new Promise<{data: null, error: Error}>((resolve) => 
-                  setTimeout(() => resolve({
-                    data: null, 
-                    error: new Error("Author data fetch timeout")
-                  }), 5000)
-                )
-              ]);
-              
-              if (!isMounted) return;
-              setLoadingProgress(90);
-              
-              if (error) {
-                console.error("Error fetching author data:", error);
-                // Continue without author data
-              } else if (data) {
-                const authorsMap: Record<string, string> = {};
-                data.forEach(profile => {
-                  authorsMap[profile.id] = profile.name;
-                });
-                setProjectAuthors(authorsMap);
-              }
-            } catch (authorError) {
-              console.error("Exception fetching authors:", authorError);
-              // Continue without author data
+            console.log("Fetching authors for IDs:", uniqueAuthorIds);
+            const { data, error } = await supabase
+              .from('profiles')
+              .select('id, name')
+              .in('id', uniqueAuthorIds);
+            
+            if (!isMounted) return;
+            setLoadingProgress(90);
+            
+            if (error) {
+              console.error("Error fetching authors:", error);
+            } else if (data) {
+              console.log("Authors fetched:", data.length);
+              const authorsMap: Record<string, string> = {};
+              data.forEach(profile => {
+                authorsMap[profile.id] = profile.name;
+              });
+              setProjectAuthors(authorsMap);
             }
-            console.timeEnd('fetchAuthors');
+          } catch (authorError) {
+            console.error("Exception fetching authors:", authorError);
           }
-        } else {
-          console.log("No projects returned or empty array:", allProjects);
-          setProjects([]);
         }
-        
       } catch (error) {
         console.error("Error in fetchProjects:", error);
         if (isMounted) {
@@ -136,6 +130,7 @@ const Projects: React.FC = () => {
         }
       } finally {
         if (isMounted) {
+          clearTimeout(timeoutId);
           setLoadingProgress(100);
           setInitialLoadComplete(true);
           setIsPageLoading(false);
@@ -147,7 +142,7 @@ const Projects: React.FC = () => {
     
     return () => {
       isMounted = false;
-      window.clearTimeout(timeoutId);
+      clearTimeout(timeoutId);
     };
   }, [getAllProjects]);
   

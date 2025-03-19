@@ -120,30 +120,42 @@ export const getProjectService = async (id: string): Promise<Project | null> => 
 };
 
 export const getAllProjectsService = async (): Promise<Project[]> => {
+  console.log("Fetching all projects...");
+  
   try {
-    console.log("Fetching all projects...");
-    const { data, error } = await supabase
+    // Add timeout to prevent hanging requests
+    const timeoutPromise = new Promise<null>((_, reject) => 
+      setTimeout(() => reject(new Error("Supabase request timeout")), 8000)
+    );
+    
+    const fetchPromise = supabase
       .from('projects')
       .select('*')
       .order('updated_at', { ascending: false });
+    
+    // Race the fetch against a timeout
+    const { data, error } = await Promise.race([
+      fetchPromise,
+      timeoutPromise.then(() => ({ data: null, error: new Error("Request timed out") }))
+    ]) as any;
     
     if (error) {
       console.error("Error fetching all projects:", error);
       throw error;
     }
     
-    console.log("Projects data from Supabase:", data);
-    
-    // Return empty array if no data
-    if (!data || data.length === 0) {
-      console.log("No projects found");
+    if (!data) {
+      console.error("No data returned from projects query");
       return [];
     }
     
-    return data.map(project => formatProject(project));
+    console.log("Projects data from Supabase:", data);
+    
+    // Ensure we handle empty arrays properly
+    return Array.isArray(data) ? data.map(project => formatProject(project)) : [];
   } catch (error) {
-    console.error("Error in getAllProjectsService:", error);
-    // Return empty array instead of throwing error
+    console.error("Exception in getAllProjectsService:", error);
+    // Return empty array instead of throwing to prevent UI from breaking
     return [];
   }
 };

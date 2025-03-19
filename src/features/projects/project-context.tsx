@@ -131,7 +131,9 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
     setIsLoading(true);
     
     try {
+      console.time('fetchProjects');
       const formattedProjects = await getAllProjectsService();
+      console.timeEnd('fetchProjects');
       
       // Update local state
       setProjects(formattedProjects);
@@ -139,8 +141,10 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
       return formattedProjects;
     } catch (error) {
       console.error("Error fetching all projects:", error);
+      // Return empty array to prevent UI from breaking
       return [];
     } finally {
+      // Always reset loading state
       setIsLoading(false);
     }
   };
