@@ -26,11 +26,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const fetchUserProfile = async (userId: string): Promise<User | null> => {
     try {
       console.log(`Fetching profile for user: ${userId}`);
-      const { data, error } = await supabase
+      // Add a timeout to the profile fetch to prevent hanging
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        setTimeout(() => reject(new Error("Profile fetch timeout")), 5000);
+      });
+      
+      const fetchPromise = supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .maybeSingle();  // Use maybeSingle instead of single to prevent errors
+        .maybeSingle();
+        
+      // Race the fetch against the timeout
+      const { data, error } = await Promise.race([
+        fetchPromise,
+        timeoutPromise.then(() => ({ data: null, error: new Error("Timeout") }))
+      ]) as any;
 
       if (error) {
         console.error('Error fetching user profile:', error);
@@ -64,7 +75,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const checkSession = async () => {
       try {
         console.log('Checking for existing session...');
-        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        // Add a timeout for the session check
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise<{data: {session: null}}>((resolve) => {
+          setTimeout(() => {
+            console.warn('Session check timed out');
+            resolve({data: {session: null}});
+          }, 5000);
+        });
+        
+        // Race the session check against the timeout
+        const { data: { session }, error } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
         
         if (!isMounted) return;
         
@@ -82,6 +107,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           const { user: authUser } = session;
           
           try {
+            // Set a temporary state to show we're working on it
+            setState(prev => ({
+              ...prev,
+              token: session.access_token,
+              isLoading: true
+            }));
+            
             const profile = await fetchUserProfile(authUser.id);
             
             if (!isMounted) return;
@@ -118,10 +150,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
           } catch (profileError) {
             console.error('Error in profile fetch:', profileError);
-            setState({
-              ...initialState,
-              isLoading: false,
-            });
+            
+            // Fallback: create a basic user even if the profile fetch fails completely
+            if (isMounted) {
+              const user: User = {
+                id: authUser.id,
+                email: authUser.email || '',
+                name: authUser.email?.split('@')[0] || 'User',
+                role: 'Viewer', 
+                createdAt: new Date().toISOString(),
+              };
+              
+              setState({
+                user,
+                token: session.access_token,
+                isAuthenticated: true,
+                isLoading: false,
+              });
+            }
           }
         } else {
           // No session found
@@ -153,7 +199,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           isLoading: false,
         }));
       }
-    }, 10000); // 10 second timeout
+    }, 7000); // 7 second timeout
 
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -199,7 +245,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
           } catch (error) {
             console.error('Error during sign in:', error);
-            setState(prev => ({ ...prev, isLoading: false }));
+            
+            // Fallback to basic user even on error
+            if (isMounted) {
+              const user: User = {
+                id: authUser.id,
+                email: authUser.email || '',
+                name: authUser.email?.split('@')[0] || 'User',
+                role: 'Viewer',
+                createdAt: new Date().toISOString(),
+              };
+              
+              setState({
+                user,
+                token: session.access_token,
+                isAuthenticated: true,
+                isLoading: false,
+              });
+            }
           }
         } else if (event === 'SIGNED_OUT') {
           setState({

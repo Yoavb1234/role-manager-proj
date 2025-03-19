@@ -9,6 +9,7 @@ const AuthLayout: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  const [extendedTimeout, setExtendedTimeout] = useState(false);
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
@@ -19,15 +20,21 @@ const AuthLayout: React.FC = () => {
   // Add timeout for loading state
   useEffect(() => {
     let timeoutId: number;
+    let extendedTimeoutId: number;
     
     if (isLoading) {
       timeoutId = window.setTimeout(() => {
         setLoadingTimeout(true);
-      }, 8000); // 8 seconds timeout
+      }, 5000); // 5 seconds timeout
+      
+      extendedTimeoutId = window.setTimeout(() => {
+        setExtendedTimeout(true);
+      }, 15000); // 15 seconds for extended timeout
     }
     
     return () => {
       window.clearTimeout(timeoutId);
+      window.clearTimeout(extendedTimeoutId);
     };
   }, [isLoading]);
 
@@ -40,7 +47,7 @@ const AuthLayout: React.FC = () => {
   }
 
   // Display an error message if loading times out
-  if (isLoading && loadingTimeout) {
+  if ((isLoading && loadingTimeout) || extendedTimeout) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <Alert variant="destructive" className="mb-4 max-w-md">

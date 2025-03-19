@@ -25,4 +25,16 @@ if (import.meta.env.DEV) {
   (window as any).supabase = supabase;
 }
 
+// Create a global function for testing Supabase connection
+(window as any).testSupabaseConnection = async () => {
+  try {
+    const { data, error } = await supabase.from('profiles').select('count');
+    console.log("Connection test result:", { data, error });
+    return !error;
+  } catch (e) {
+    console.error("Connection test failed:", e);
+    return false;
+  }
+};
+
 createRoot(document.getElementById("root")!).render(<App />);

@@ -10,22 +10,30 @@ const AppLayout: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  const [extendedTimeout, setExtendedTimeout] = useState(false);
 
   // Add timeout for loading state
   useEffect(() => {
     let timeoutId: number;
+    let extendedTimeoutId: number;
     
     if (isLoading) {
       timeoutId = window.setTimeout(() => {
         setLoadingTimeout(true);
-      }, 8000); // 8 seconds timeout
+      }, 5000); // 5 seconds timeout
+      
+      extendedTimeoutId = window.setTimeout(() => {
+        setExtendedTimeout(true);
+      }, 15000); // 15 seconds for extended timeout
     }
     
     return () => {
       window.clearTimeout(timeoutId);
+      window.clearTimeout(extendedTimeoutId);
     };
   }, [isLoading]);
 
+  // If loading is taking too long, show a spinner
   if (isLoading && !loadingTimeout) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -35,7 +43,7 @@ const AppLayout: React.FC = () => {
   }
 
   // Display an error message if loading times out
-  if (isLoading && loadingTimeout) {
+  if ((isLoading && loadingTimeout) || extendedTimeout) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <Alert variant="destructive" className="mb-4 max-w-md">
@@ -44,12 +52,28 @@ const AppLayout: React.FC = () => {
             Connection to the server is taking longer than expected. Please refresh the page or try again later.
           </AlertDescription>
         </Alert>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="rounded bg-primary px-4 py-2 text-white hover:bg-primary/90"
-        >
-          Refresh Page
-        </button>
+        <div className="flex gap-4 mt-2">
+          <button 
+            onClick={() => window.location.reload()} 
+            className="rounded bg-primary px-4 py-2 text-white hover:bg-primary/90"
+          >
+            Refresh Page
+          </button>
+          <button 
+            onClick={() => {
+              // Try to manually test the connection
+              (window as any).testSupabaseConnection?.();
+              // Force state reset
+              setExtendedTimeout(false);
+              setLoadingTimeout(false);
+              // Redirect to login
+              window.location.href = '/login';
+            }} 
+            className="rounded bg-secondary px-4 py-2 text-white hover:bg-secondary/90"
+          >
+            Return to Login
+          </button>
+        </div>
       </div>
     );
   }

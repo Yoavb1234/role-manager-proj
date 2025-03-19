@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle2, Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -17,7 +17,31 @@ const Login: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [connectionChecked, setConnectionChecked] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
   const [searchParams] = useSearchParams();
+
+  // Check Supabase connection on component mount
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const { data, error } = await supabase.from('profiles').select('count');
+        if (error) {
+          console.error("Supabase connection test failed:", error);
+          setConnectionError(true);
+        } else {
+          console.log("Supabase connection successful:", data);
+        }
+        setConnectionChecked(true);
+      } catch (e) {
+        console.error("Connection check failed:", e);
+        setConnectionError(true);
+        setConnectionChecked(true);
+      }
+    };
+    
+    checkConnection();
+  }, []);
 
   useEffect(() => {
     // Check if user came from email confirmation
@@ -86,6 +110,15 @@ const Login: React.FC = () => {
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
+          {connectionError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Unable to connect to the database. The application may not function correctly.
+              </AlertDescription>
+            </Alert>
+          )}
+          
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
@@ -124,12 +157,20 @@ const Login: React.FC = () => {
               className="bg-background/50"
             />
           </div>
+          
+          {/* Database Status Info */}
+          <Alert className="bg-muted/50">
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              <span className="font-medium">Database Status:</span> {!connectionChecked ? 'Checking...' : connectionError ? 'Connection error' : 'Connected'}
+            </AlertDescription>
+          </Alert>
         </CardContent>
         <CardFooter className="flex flex-col">
           <Button 
             type="submit" 
             className="w-full mb-4" 
-            disabled={isSubmitting}
+            disabled={isSubmitting || connectionError}
           >
             {isSubmitting ? (
               <>
