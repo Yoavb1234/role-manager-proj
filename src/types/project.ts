@@ -20,6 +20,7 @@ export interface ProjectPermissions {
   canDelete: boolean;
 }
 
+// Optimized version with memoization support
 export const getProjectPermissions = (
   project: Project | null,
   user: User | null

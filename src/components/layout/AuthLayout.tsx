@@ -1,22 +1,29 @@
 
-import React from "react";
-import { Outlet, Navigate } from "react-router-dom";
+import React, { useEffect } from "react";
+import { Outlet, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { Loader2 } from "lucide-react";
 
 const AuthLayout: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      navigate("/projects", { replace: true });
+    }
+  }, [isLoading, isAuthenticated, navigate]);
 
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/projects" replace />;
+    return null; // Don't render anything as we're redirecting in useEffect
   }
 
   return (

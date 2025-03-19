@@ -7,34 +7,45 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectWithAuthor, getProjectPermissions } from "@/types/project";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ChevronLeft, Edit, Trash, AlertTriangle, User } from "lucide-react";
+import { ChevronLeft, Edit, Trash, User } from "lucide-react";
 import { toast } from "sonner";
 
 const ProjectDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { getProjectWithAuthor, deleteProject, isLoading } = useProjects();
+  const { getProjectWithAuthor, deleteProject } = useProjects();
   const [project, setProject] = useState<ProjectWithAuthor | null>(null);
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
+    let isMounted = true;
+    
     const fetchProject = async () => {
       if (!id) return;
       
       try {
         setLoading(true);
         const fetchedProject = await getProjectWithAuthor(id);
-        setProject(fetchedProject);
+        
+        if (isMounted) {
+          setProject(fetchedProject);
+          setLoading(false);
+        }
       } catch (error) {
-        toast.error("Failed to load project");
-        console.error(error);
-      } finally {
-        setLoading(false);
+        if (isMounted) {
+          toast.error("Failed to load project");
+          console.error(error);
+          setLoading(false);
+        }
       }
     };
     
     fetchProject();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [id, getProjectWithAuthor]);
   
   const permissions = getProjectPermissions(project, user);
@@ -55,26 +66,26 @@ const ProjectDetail: React.FC = () => {
     }
   };
   
-  if (loading || isLoading) {
+  if (loading) {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <Skeleton className="h-10 w-1/3" />
-          <Skeleton className="h-10 w-40" />
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-8 w-24" />
         </div>
-        <Skeleton className="h-6 w-full mt-6" />
+        <Skeleton className="h-6 w-full mt-4" />
         <Skeleton className="h-6 w-full" />
         <Skeleton className="h-6 w-2/3" />
-        <Skeleton className="h-40 w-full mt-10" />
+        <Skeleton className="h-32 w-full mt-6" />
       </div>
     );
   }
   
   if (!project) {
     return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-bold mb-4">Project Not Found</h2>
-        <p className="text-muted-foreground mb-6">The project you are looking for doesn't exist or has been deleted.</p>
+      <div className="text-center py-10">
+        <h2 className="text-2xl font-bold mb-3">Project Not Found</h2>
+        <p className="text-muted-foreground mb-5">The project you are looking for doesn't exist or has been deleted.</p>
         <Link to="/projects">
           <Button>Back to Projects</Button>
         </Link>
@@ -82,7 +93,6 @@ const ProjectDetail: React.FC = () => {
     );
   }
   
-  // All users can view, no need for the canView check since permissions are handled elsewhere
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
