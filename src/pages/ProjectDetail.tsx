@@ -9,7 +9,6 @@ import { ProjectWithAuthor, getProjectPermissions } from "@/types/project";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { ChevronLeft, Edit, Trash, AlertTriangle, User } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 
 const ProjectDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +23,7 @@ const ProjectDetail: React.FC = () => {
       if (!id) return;
       
       try {
+        setLoading(true);
         const fetchedProject = await getProjectWithAuthor(id);
         setProject(fetchedProject);
       } catch (error) {
@@ -82,21 +82,7 @@ const ProjectDetail: React.FC = () => {
     );
   }
   
-  if (!permissions.canView) {
-    return (
-      <div className="text-center py-12 space-y-4">
-        <AlertTriangle className="h-16 w-16 text-muted-foreground mx-auto" />
-        <h2 className="text-2xl font-bold">Access Denied</h2>
-        <p className="text-muted-foreground">
-          You don't have permission to view this project.
-        </p>
-        <Link to="/projects">
-          <Button>Back to Projects</Button>
-        </Link>
-      </div>
-    );
-  }
-  
+  // All users can view, no need for the canView check since permissions are handled elsewhere
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

@@ -33,7 +33,7 @@ export const getProjectPermissions = (
     return { canView: true, canEdit: true, canDelete: true };
   }
 
-  // Editor can edit and view all projects, but can only delete their own
+  // Editor can edit all projects, but can only delete their own
   if (user.role === "Editor") {
     return { 
       canView: true, 
@@ -42,10 +42,6 @@ export const getProjectPermissions = (
     };
   }
 
-  // Viewer can only view
-  if (user.role === "Viewer") {
-    return { canView: true, canEdit: false, canDelete: false };
-  }
-
-  return { canView: false, canEdit: false, canDelete: false };
+  // Viewer can only view projects
+  return { canView: true, canEdit: false, canDelete: false };
 };

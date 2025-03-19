@@ -1,19 +1,11 @@
 
-import React, { useEffect } from "react";
-import { Outlet, Navigate, useNavigate } from "react-router-dom";
+import React from "react";
+import { Outlet, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { Loader2 } from "lucide-react";
 
 const AuthLayout: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    // If user is authenticated, redirect them to projects page
-    if (isAuthenticated && !isLoading) {
-      navigate("/projects", { replace: true });
-    }
-  }, [isAuthenticated, isLoading, navigate]);
 
   if (isLoading) {
     return (

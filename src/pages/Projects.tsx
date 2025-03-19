@@ -6,7 +6,7 @@ import { useProjects } from "@/contexts/project-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Project } from "@/types/project";
-import { Plus, Search, FolderOpen, Loader2 } from "lucide-react";
+import { Plus, Search, FolderOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -16,17 +16,15 @@ const Projects: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [projectAuthors, setProjectAuthors] = useState<Record<string, string>>({});
-  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   
   const canCreateProjects = user?.role === "Admin" || user?.role === "Editor";
   
   useEffect(() => {
     const fetchProjects = async () => {
-      setLoadingProjects(true);
       try {
         const allProjects = await getAllProjects();
         setProjects(allProjects);
-        console.log("Fetched projects:", allProjects);
         
         // Fetch author names for each project
         const authors: Record<string, string> = {};
@@ -51,7 +49,7 @@ const Projects: React.FC = () => {
       } catch (error) {
         console.error("Error in fetchProjects:", error);
       } finally {
-        setLoadingProjects(false);
+        setInitialLoadComplete(true);
       }
     };
     
@@ -61,6 +59,20 @@ const Projects: React.FC = () => {
   const filteredProjects = projects.filter(project => 
     project.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  
+  // Show loading state only on initial load, not for subsequent data fetches
+  if (isLoading && !initialLoadComplete) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
+            <p className="text-muted-foreground mt-1">Loading projects...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="space-y-6">
@@ -94,12 +106,7 @@ const Projects: React.FC = () => {
         />
       </div>
       
-      {loadingProjects ? (
-        <div className="flex justify-center items-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <span className="ml-2 text-muted-foreground">Loading projects...</span>
-        </div>
-      ) : filteredProjects.length > 0 ? (
+      {filteredProjects.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredProjects.map((project) => (
             <Link key={project.id} to={`/projects/${project.id}`}>
