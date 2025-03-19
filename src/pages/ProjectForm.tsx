@@ -1,8 +1,7 @@
-
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
-import { useProjects } from "@/contexts/project-context";
+import { useProjects } from "@/features/projects/project-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
